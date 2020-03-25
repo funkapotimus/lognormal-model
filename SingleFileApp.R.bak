@@ -1,0 +1,293 @@
+# Load packages -----------------------------------------------------
+library(shiny)
+library(plotly)
+options(shiny.trace=TRUE)
+# Define UI ---------------------------------------------------------
+ui <- pageWithSidebar(
+ 
+   
+  #  Application title
+  headerPanel("Quandl API Feed for Sharadar Equity Prices"),
+  sidebarPanel(
+        
+ 
+   # helpText(a(href="https://www.coursera.org/course/statistics", target="_blank", "Want to learn more for free?"))
+	helpText("This app takes advantage of the Quandl API feed for Sharadar Equity Prices and returns a candlestick shaped graph for the selected data set. 
+			This app also applies the lognormal distribution to the selected data set to model the stock price movement using the dates from 2018-09-04 to 2018-12-31 (T = 82).
+			The range can be easily extended to allow current up to date data though this data is not accessible without purchasing a subscription to the Quandl API feed
+			and is therefore not a part of this project. The purpose of this project is to gauge the accuracy of the lognormal model with a nondividend paying stock (ie delta = 0 )
+			The tickers in this data set are displayed below and the ticker to the right corresponds to the TSLA stock prices during the aforementioned dates."),
+	
+	 radioButtons("type", "Select a ticker:",
+                 list(
+						"Exxon"	= "XOM",
+						"Walmart" = "WMT",
+						"Verizon" = "VZ",
+						"Visa" = "V",
+						"United Technologies" = "UTX",
+						"UnitedHealth Group" = "UNH",
+						"Tesla" = "TSLA",
+						"The Travelers Companies" = "TRV",
+						"Procter & Gamble" = "PG",
+						"Pfizer"="PFE",
+						"Nike"="NKE",
+						"Microsoft"="MSFT",
+						"Merck & Co."="MRK",
+						"3M"="MMM",
+						"McDonald's"="MCD",
+						"The Coca-Cola Company"="KO",
+						"JPMorgan Chase"="JPM",
+						"Johnson & Johnson"="JNJ",
+						"Intel"="INTC",
+						"IBM"="IBM",
+						"The Home Depot"="HD",
+						"Goldman Sachs"="GS",
+						"General Electric"="GE",
+						"The Walt Disney Company"="DIS",
+						"DuPont"="DD",
+						"Chevron Corporation"="CVX",
+						"Cisco Systems"="CSCO",
+						"Caterpillar Inc."="CAT",
+						"Boeing"="BA",
+						"American Express"="AXP",
+						"Apple"="AAPL"				  
+					  
+					  
+					  )),
+					  
+	# verbatimTextOutput("describeticker")		
+	
+	
+	),
+  
+  
+  
+  # Show the main display
+  mainPanel(
+    # plotOutput("scatter"),
+    # br(),
+    # br(),
+    # plotOutput("residuals"),
+	plotlyOutput("fincandle"),
+	verbatimTextOutput("describedata"),
+	verbatimTextOutput("logdivision"),
+	verbatimTextOutput("describedivision")
+  )
+)
+
+# Define server function --------------------------------------------
+# Derived from http://econometricsbysimulation.shinyapps.io/OLS-App/
+
+# set mirror
+options(repos=structure(c(CRAN="http://cran.rstudio.com")))
+
+#if (!("shiny" %in% names(installed.packages()[,"Package"]))) {install.packages("shiny")}
+#suppressMessages(library(shiny, quietly = TRUE))
+
+#if (!("openintro" %in% names(installed.packages()[,"Package"]))) {install.packages("openintro")}
+#suppressMessages(library(openintro, quietly = TRUE))
+
+#if (!("plotrix" %in% names(installed.packages()[,"Package"]))) {install.packages("plotrix")}
+#suppressMessages(library(plotrix, quietly = TRUE))
+
+input <- list(rseed=1)
+
+seed = as.numeric(Sys.time())
+
+# A function for generating the data.
+draw.data <- function(type){
+  
+  n <- 250
+  if(type=="linear.up"){
+    x <- c(runif(n-2, 0, 4), 2, 2.1)
+    y <- 2*x + rnorm(n, sd=2)
+  }
+  if(type=="linear.down"){
+    x <- c(runif(n-2, 0, 4), 2, 2.1)
+    y <- -2*x + rnorm(n, sd=2)
+  }
+  if(type=="curved.up"){
+    x <- c(runif(n-2, 0, 4), 2, 2.1)
+    y <- 2*x^4 + rnorm(n, sd=16)
+  }
+  if(type=="curved.down"){
+    x <- c(runif(n-2, 0, 4), 2, 2.1)
+    y <- -2*x^3 + rnorm(n, sd=9)
+  }
+  if(type=="fan.shaped"){
+    x = seq(0,3.99,4/n)
+    y = c(rnorm(n/8,3,1),rnorm(n/8,3.5,2),rnorm(n/8,4,2.5),rnorm(n/8,4.5,3),rnorm(n/4,5,4),rnorm((n/4)+2,6,5))
+  }
+  
+  data.frame(x=x,y=y)
+}
+
+
+
+finpartialdata <- subset(findata, ticker == 'XOM', select = c("ticker", "date" , "open", "high", "low", "close", "volume", "dividends"))
+		
+
+server <- function(input, output) {
+
+
+	 output$describedata <- renderPrint({
+	  
+		summary(finpartialdata)
+		
+		
+	  
+	 })
+	 
+	# output$describeticker <- renderPrint({	  
+	
+		# finuniquetickerdata
+		
+	  
+	 # })
+	
+	
+	output$logdivision <- renderPrint({	  
+	
+		division
+		
+	  
+	 })
+	 
+	 output$describedivision<- renderPrint({	  
+	
+		summary(division)
+		
+	  
+	 })
+	 #here we need to calculate (1/N-1)SUM(1 to n)(xi-xbar)^2
+	  output$divisionmean<- renderPrint({	  
+	
+		mean <- sapply(division, mean,  na.rm=TRUE)	
+		
+		
+		#ximinusxbar <- (division-mean)^2
+		#sumofximinusxbar <- colSums(ximinusxbar)
+		#here i believe we should use 80. we started with 82 observations lost one to offset. so we end with 81.
+		#varianceofdivision <- sumofximinusxbar/80
+		
+		variance <-sapply(division, var,  na.rm=TRUE)
+		logvariance <- variance/81
+		logmean <- mean + .5*logvariance
+		logmean
+		
+	 })
+	
+	 output$divisionvar<- renderPrint({	  
+	
+		variance <-sapply(division, var,  na.rm=TRUE)
+		logvariance <- variance/81
+		logvariance
+	  
+	 })
+	
+	
+	#here i need to create a renderplot for one of the tickers then expand it to do it to all 
+	output$fincandle <- renderPlotly({
+	
+		i <- list(line = list(color = '#FF00FF'))
+		d <- list(line = list(color = '#8EFF00'))
+		plot_ly(x = finpartialdata$date, type="candlestick",
+          open = finpartialdata$open, close = finpartialdata$close,
+          high = finpartialdata$high, low = finpartialdata$low,
+          increasing = i, decreasing = d)
+	
+	
+	
+	
+	})
+	
+	
+	output$endofdaygraph<- renderPlot({	  
+	
+		ggplot(data = finpartialdata, mapping = aes(x = date, y = close)) + geom_point() + geom_line() 
+		
+	  
+	 })
+  
+  mydata <- reactive({
+    draw.data(input$type)
+  })
+  
+  lmResults <- reactive({
+    regress.exp <- "y~x"
+    lm(regress.exp, data=mydata())
+  })
+  
+  
+  
+  # Show plot of points, regression line, residuals
+  output$scatter <- renderPlot({
+    data1 <- mydata()
+    x <- data1$x
+    y <- data1$y
+    
+    #used for confidence interval
+    xcon <- seq(min(x)-.1, max(x)+.1, .025)
+    
+    predictor <- data.frame(x=xcon)
+    
+    yhat <- predict(lmResults())    
+    yline <- predict(lmResults(), predictor)
+    
+    par(cex.main=1.5, cex.lab=1.5, cex.axis=1.5, mar = c(4,4,4,1))
+    
+    r.squared = round(summary(lmResults())$r.squared, 4)
+    corr.coef = round(sqrt(r.squared), 4)
+    
+    plot(c(min(x),max(x)) 
+         ,c(min(y,yline),max(y,yline)), 
+         type="n",
+         xlab="x",
+         ylab="y",
+         main=paste0("Regression Model\n","(R = ", corr.coef,", ", "R-squared = ", r.squared,")"))
+    
+    
+    newx <- seq(min(data1$x), max(data1$x), length.out=400)
+    confs <- predict(lmResults(), newdata = data.frame(x=newx), 
+                     interval = 'confidence')
+    preds <- predict(lmResults(), newdata = data.frame(x=newx), 
+                     interval = 'predict')
+    
+    polygon(c(rev(newx), newx), c(rev(preds[ ,3]), preds[ ,2]), col = grey(.95), border = NA)
+    polygon(c(rev(newx), newx), c(rev(confs[ ,3]), confs[ ,2]), col = grey(.75), border = NA)
+    
+    points(x,y,pch=19, col=COL[1,2])
+    lines(xcon, yline, lwd=2, col=COL[1])
+    
+    if (input$show.resid) for (j in 1:length(x)) 
+      lines(rep(x[j],2), c(yhat[j],y[j]), col=COL[4])
+    
+    legend_pos = ifelse(lmResults()$coefficients[1] < 1, "topleft", "topright")
+    if(input$type == "linear.down") legend_pos = "topright"
+    if(input$type == "fan.shaped") legend_pos = "topleft"   
+    legend(legend_pos, inset=.05,
+           legend=c("Regression Line", "Confidence Interval", "Prediction Interval"), 
+           fill=c(COL[1],grey(.75),grey(.95)))
+    box()
+  })
+  
+  output$residuals <- renderPlot({
+    par(mfrow=c(1,3), cex.main=2, cex.lab=2, cex.axis=2, mar=c(4,5,2,2))
+    residuals = summary(lmResults())$residuals
+    predicted = predict(lmResults(), newdata = data.frame(x=mydata()$x))
+    plot(residuals ~ predicted, 
+         main="Residuals vs. Fitted Values", xlab="Fitted Values", ylab="Residuals", 
+         pch=19, col = COL[1,2])
+    abline(h = 0, lty = 2)
+    d = density(residuals)$y
+    h = hist(residuals, plot = FALSE)
+    hist(residuals, main="Histogram of Residuals", xlab="Residuals", 
+         col=COL[1,2], prob = TRUE, ylim = c(0,max(max(d), max(h$density))))
+    lines(density(residuals), col = COL[1], lwd = 2)
+    qqnorm(residuals, pch=19, col = COL[1,2], main = "Normal Q-Q Plot of Residuals")
+    qqline(residuals, col = COL[1], lwd = 2)
+  }, height=280 )
+}
+
+# Create the Shiny app object ---------------------------------------
+shinyApp(ui = ui, server = server)
